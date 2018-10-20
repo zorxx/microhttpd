@@ -10,14 +10,14 @@ RM ?= rm
 
 CFLAGS := -O3 -Wall -Werror -I..
 CDEFS :=
-LDFLAGS := -L..
-LIBS := microhttpd
+LDFLAGS :=
+LIBS :=
 
 SRC := main.c
 
 all: $(TARGET)
 
-$(TARGET): $(foreach src,$(SRC),$(src:.c=.o))
+$(TARGET): $(foreach src,$(SRC),$(src:.c=.o)) ../libmicrohttpd.a
 	$(info LINK $@)
 	@$(CC) $(LDFLAGS) -Wl,--start-group $(foreach lib,$(LIBS),-l$(lib)) $^ -Wl,--end-group -o $@
 

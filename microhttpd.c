@@ -7,24 +7,22 @@
 #include <malloc.h>
 #include <string.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 #include "debug.h"
+#include "helpers.h"
+#include "client.h"
+#include "post.h"
 #include "microhttpd_private.h"
 #include "microhttpd.h"
 
 // Forward function declarations
-static int microhttpd_CreateListeningSocket(md_context_t *ctx);
-static int microhttpd_NewClient(md_context_t *ctx, int nSocket, struct sockaddr_in *socket_info);
-static int microhttpd_RemoveClient(md_context_t *ctx, md_client_t *client);
-static int microhttpd_HandleClientReceive(md_context_t *ctx, md_client_t *client);
-static int microhttpd_HandleClientError(md_context_t *ctx, md_client_t *client);
+static int microhttpd_CreateListeningSocket(struct md_context *ctx);
 
-static char *http_header_chop(char **header, uint32_t *header_length, char *delimiter, uint32_t delimiter_length);
-static int microhttpd_HandleReceivedHeader(md_context_t *ctx, md_client_t *client, uint32_t header_length);
-static int microhttpd_HandleGetOperation(md_context_t *ctx, md_client_t *client);
-static int microhttpd_HandlePostOperation(md_context_t *ctx, md_client_t *client);
+static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool *error);
+static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, bool *error);
+static bool state_HandleOperationGet(struct md_client *client, uint32_t *consumed, bool *error);
+static bool state_HandleOperationUnsupported(struct md_client *client, uint32_t *consumed, bool *error);
 
 /* -------------------------------------------------------------------------------------------------
  * Exported Functions
@@ -32,7 +30,7 @@ static int microhttpd_HandlePostOperation(md_context_t *ctx, md_client_t *client
 
 tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params)
 {
-   md_context_t *ctx;
+   struct md_context *ctx;
 
    if(params->rx_buffer_size == 0)
    {
@@ -40,7 +38,7 @@ tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params)
       return NULL;
    }
 
-   ctx = (md_context_t *) malloc(sizeof(*ctx));
+   ctx = (struct md_context *) malloc(sizeof(*ctx));
    if(NULL == ctx)
    {
       DBG("%s: Failed to allocate context structure\n", __func__);
@@ -62,12 +60,12 @@ tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params)
 
 int microhttpd_process(tMicroHttpdContext context)
 {
-   md_context_t *ctx = (md_context_t *) context;
+   struct md_context *ctx = (struct md_context *) context;
    int fd_max, nResult;
    uint32_t client_count = 0;
    fd_set fdRead;
    fd_set fdError;
-   md_client_t *client;
+   struct md_client *client;
    struct timeval timeout, *pTimeout = NULL;
 
    DBG("%s\n", __func__);
@@ -86,7 +84,7 @@ int microhttpd_process(tMicroHttpdContext context)
    FD_SET(ctx->listen_socket, &fdRead);
    FD_SET(ctx->listen_socket, &fdError);
    fd_max = ctx->listen_socket;
-   for(client = ctx->client_list; client != NULL; client = (md_client_t *) client->next)
+   for(client = ctx->client_list; client != NULL; client = (struct md_client *) client->next)
    {
       fd_max = MAX(fd_max, client->socket);
       FD_SET(client->socket, &fdRead);
@@ -106,7 +104,7 @@ int microhttpd_process(tMicroHttpdContext context)
    }
 
    /* First, process any data received from clients */
-   for(client = ctx->client_list; client != NULL; client =(md_client_t *) client->next)
+   for(client = ctx->client_list; client != NULL; client =(struct md_client *) client->next)
    {
       if(FD_ISSET(client->socket, &fdError))
          microhttpd_HandleClientError(ctx, client);
@@ -136,20 +134,22 @@ int microhttpd_process(tMicroHttpdContext context)
 static const char *RESPONSE_HEADER = "HTTP/1.1 %u\r\nServer: " MICROHTTPD_SERVER_NAME "\r\n"
    "Cache-control: no-cache\r\nPragma: no-cache\r\nAccept-Ranges: bytes\r\nContent-Length: %u\r\n";
 
-int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *contet_type,
+int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *content_type,
    uint32_t content_length, const char *extra_header_options, const char *content)
 {
-   md_client_t *c = (md_client_t *) client;
+   struct md_client *c = (struct md_client *) client;
    char *tx;
-   ssize_t length, result;
+   int32_t length, result;
 
    length = strlen(RESPONSE_HEADER) + 20;
    if(NULL != extra_header_options)
       length += strlen(extra_header_options);
+   if(content_type != NULL)
+      length += strlen(content_type) + 20;
    tx = malloc(length);
    if(NULL == tx)
    {
-      DBG("%s: Failed to allocate response buffer (%ld bytes)\n", __func__, length);
+      DBG("%s: Failed to allocate response buffer (%d bytes)\n", __func__, length);
       return -1;
    }
    
@@ -160,12 +160,14 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
       strcpy(&tx[length], extra_header_options); 
       length += strlen(extra_header_options);
    }
+   if(content_type != NULL)
+      length += sprintf(&tx[length], "Content-Type: %s\r\n", content_type);
    strcpy(&tx[length], "\r\n");
    length += 2;
    result = send(c->socket, tx, length, 0);
    if(result != length)
    {
-      DBG("%s: Failed to send %ld byte header (%ld)\n", __func__, length, result);
+      DBG("%s: Failed to send %d byte header (%d)\n", __func__, length, result);
       free(tx);
       /* TODO: close connection? */
       return -1;
@@ -178,7 +180,7 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
       result = send(c->socket, content, content_length, 0);
       if(result != content_length)
       {
-         DBG("%s: Failed to send %u byte content (%ld)\n", __func__, content_length, result);
+         DBG("%s: Failed to send %u byte content (%d)\n", __func__, content_length, result);
          /* TODO: close connection? */
          return -1;
       }
@@ -188,10 +190,21 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
 }
 
 /* -------------------------------------------------------------------------------------------------
+ * Common Functions
+ */
+
+void microhttpd_ResetState(struct md_client *client)
+{
+   string_list_clear(&client->header_entries, &client->header_entry_count);
+   string_list_clear(&client->post_header_entries, &client->post_header_entry_count);
+   client->state = state_ParseHeader;
+}
+
+/* -------------------------------------------------------------------------------------------------
  * Private Helper Functions
  */
 
-static int microhttpd_CreateListeningSocket(md_context_t *ctx)
+static int microhttpd_CreateListeningSocket(struct md_context *ctx)
 {
    struct sockaddr_in sinAddress = {0};
    int result = -1;
@@ -241,176 +254,91 @@ static int microhttpd_CreateListeningSocket(md_context_t *ctx)
    return result;
 }
 
-static int microhttpd_NewClient(md_context_t *ctx, int nSocket, struct sockaddr_in *socket_info)
-{
-   md_client_t *client;
-   uint8_t *addr = (uint8_t *) &socket_info->sin_addr.s_addr;
-   uint16_t port = ntohs(socket_info->sin_port);
-
-   client = (md_client_t *) malloc(sizeof(*client));
-   if(NULL == client)
-      return -1;
-   snprintf(client->source_address, sizeof(client->source_address) - 1, 
-      "%u.%u.%u.%u:%u", addr[0], addr[1], addr[2], addr[3], port);
-   DBG("%s: New client connected from %s\n", __func__, client->source_address);
-
-   client->socket = nSocket;
-   memcpy(&client->socket_info, socket_info, sizeof(client->socket_info));
-   client->rx_buffer_size = ctx->params.rx_buffer_size;
-   client->rx_buffer = malloc(client->rx_buffer_size);
-   if(client->rx_buffer == NULL)
-   {
-      DBG("%s: Failed to allocate receive buffer\n", __func__);
-      free(client);
-      return -1;
-   }
-
-   client->next = ctx->client_list;
-   if(ctx->client_list != NULL)
-      client->prev = ctx->client_list->prev;
-   else
-   {
-      ctx->client_list = client;
-      client->prev = NULL;
-   }
-
-   return 0;
-}
-
-static int microhttpd_RemoveClient(md_context_t *ctx, md_client_t *client)
-{
-   close(client->socket);
-
-   if(client->prev != NULL)
-      ((md_client_t *) client->prev)->next = client->next;
-   else
-      ctx->client_list = client->next; /* Remove list head */
-   if(client->next != NULL)
-      ((md_client_t *) client->next)->prev = client->prev;
-
-   free(client->rx_buffer);
-   free(client);
-   return 0;
-}
-
-static int microhttpd_HandleClientReceive(md_context_t *ctx, md_client_t *client)
-{
-   ssize_t space_left = client->rx_buffer_size - client->rx_size;
-   ssize_t length;
-   char *offset;
-
-   if(space_left <= 0)
-   {
-      DBG("%s: Invalid space remaining (%ld)\n", __func__, space_left);
-      return microhttpd_RemoveClient(ctx, client);
-   }
-   length = read(client->socket, &client->rx_buffer[client->rx_size], space_left); 
-   if(length <= 0)
-   {
-      DBG("%s: Read failed (%ld)\n", __func__, length);
-      return microhttpd_RemoveClient(ctx, client);
-   }
-   client->rx_size += length;
-
-   offset = strstr((char *)client->rx_buffer, "\r\n\r\n");
-   if(offset != NULL)
-      microhttpd_HandleReceivedHeader(ctx, client, offset - client->rx_buffer + 4);
-   else
-   {
-      DBG("%s: Partial header '%s'\n", __func__, client->rx_buffer);
-   }
-
-   return 0;
-}
-
-static int microhttpd_HandleClientError(md_context_t *ctx, md_client_t *client)
-{
-   DBG("%s: Socket error\n", __func__);
-   return microhttpd_RemoveClient(ctx, client);
-}
-
 /* -------------------------------------------------------------------------------------------------
- * HTTP Operations 
+ * States 
  */
 
-static char *http_header_chop(char **header, uint32_t *header_length,
-   char *delimiter, uint32_t delimiter_length)
+static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool *error)
 {
-   char *start = *header;
-   uint32_t offset = 0;
+   uint32_t length;
+   char *offset;
 
-   ASSERT(header_length > 0);
-   ASSERT(delimiter_length > 0);
-   ASSERT(*header != NULL);
-   ASSERT(delimiter != NULL);
+   offset = string_find(client->rx_buffer, client->rx_size, "\r\n", 2);
+   if(offset == NULL)
+      return false;  /* Header entry delimiter not found; need more rx data */
 
-   while(offset < delimiter_length && *header_length > 0)
+   length = offset - client->rx_buffer;
+   if(0 == length)
    {
-      if (**header == delimiter[offset])
-         ++offset;
-      (*header)++;
-      --(*header_length);
+      DBG("%s: Header parsing complete (%u entries)\n", __func__, client->header_entry_count);
+      client->state = state_HeaderComplete; /* Empty header entry found; header complete */
+      *consumed = 2;
+      return true;
    }
- 
-   if(*header_length > 0)
+   DBG("%s: Found header option (length %u)\n", __func__, length);
+
+   if(!string_list_add(client->rx_buffer, length, &client->header_entries,
+      &client->header_entry_count))
    {
-      *((*header) - delimiter_length) = '\0';
-      return start;
+      DBG("%s: Failed to allocate header entry list\n", __func__);
+      *error = true;
+      return false;
    }
 
-   return NULL;
+   if(client->header_entry_count > 1)
+      lower(client->header_entries[client->header_entry_count-1]);
+
+   DBG("%s: Header option %u: '%s'\n", __func__, client->header_entry_count,
+      client->header_entries[client->header_entry_count-1]);
+
+   *consumed = length + 2;
+   return true;
 }
 
-static int microhttpd_HandleReceivedHeader(md_context_t *ctx, md_client_t *client, uint32_t header_length)
+static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, bool *error)
 {
-   char *offset = client->rx_buffer;
-   uint32_t remaining = header_length;
-   bool done;
+   char *offset;
+   uint32_t remaining;
 
-   DBG("%s: Header length %u (buffer total %u)\n", __func__, header_length, client->rx_size);
-
-   /* Parse the operaton, URI and HTTP version header fields */
-   client->operation = http_header_chop(&offset, &remaining, " ", 1);
-   client->uri = http_header_chop(&offset, &remaining, " ", 1);
-   client->http_version = http_header_chop(&offset, &remaining, "\r\n", 2);
-   DBG("%s: operation '%s', uri '%s', version '%s'\n", __func__,
-      client->operation, client->uri, client->http_version);
-
-   /* Parse all header options */
-   done = false;
-   client->option_count = 0;
-   while(!done)
+   if(client->header_entry_count == 0)
    {
-      client->options[client->option_count] = http_header_chop(&offset, &remaining, "\r\n", 2);
-      if(client->options[client->option_count] == NULL
-      || strlen(client->options[client->option_count]) == 0)
-         done = true;
-      else
-      {
-         DBG("%s: option %u '%s'\n", __func__, client->option_count,
-            client->options[client->option_count]);
-         ++(client->option_count);
-      }
-   
-      if(client->option_count >= ARRAY_SIZE(client->options))
-         done = true;
+      DBG("%s: No header entries\n", __func__);
+      *error = true;
+      return false;
    }
+
+   /* Split-up the first header line into its three parts */
+   offset = client->header_entries[0];
+   remaining = strlen(offset);
+   client->operation = string_chop(&offset, &remaining, " ", 1);
+   DBG("%s: operation '%s'\n", __func__, client->operation);
+   client->uri = string_chop(&offset, &remaining, " ", 1);
+   DBG("%s: uri '%s'\n", __func__, client->uri);
+   client->http_version = offset;
+   DBG("%s: http version '%s'\n", __func__, client->http_version);
 
    /* Parse parameters in the URI */
    offset = strchr(client->uri, '?');
    if(NULL != offset)
    {
+      bool done = false;
+
       *offset = '\0';
       ++offset;
       remaining = strlen(offset);
-      done = false;
       client->uri_param_count = 0;
       while(!done)
       {
-         client->uri_params[client->uri_param_count] = http_header_chop(&offset, &remaining, "&", 1);
+         client->uri_params[client->uri_param_count] = string_chop(&offset, &remaining, "&", 1);
          if(client->uri_params[client->uri_param_count] == NULL
          || strlen(client->uri_params[client->uri_param_count]) == 0)
+         {
+            client->uri_params[client->uri_param_count] = offset;
+            DBG("%s: Final URI parameter %u '%s'\n", __func__, client->uri_param_count,
+               client->uri_params[client->uri_param_count]);
+            ++(client->uri_param_count);
             done = true;
+         }
          else
          {
             DBG("%s: URI parameter %u '%s'\n", __func__, client->uri_param_count,
@@ -425,34 +353,29 @@ static int microhttpd_HandleReceivedHeader(md_context_t *ctx, md_client_t *clien
    }
 
    if(memcmp(client->operation, "GET", 3) == 0)
-      microhttpd_HandleGetOperation(ctx, client); 
+      client->state = state_HandleOperationGet;
    else if(memcmp(client->operation, "POST", 4) == 0)
-      microhttpd_HandlePostOperation(ctx, client); 
+      client->state = state_HandleOperationPost;
    else
    {
       DBG("%s: Unsupported HTTP operation '%s'\n", __func__, client->operation);
+      client->state = state_HandleOperationUnsupported;
    }
 
-   if(header_length != client->rx_size)
-   {
-      DBG("%s: %d leftover bytes in receive buffer\n", __func__, client->rx_size - header_length);
-      /* TODO: shift buffer */
-   }
-   else
-      client->rx_size = 0;   
-   return 0;
+   return true;
 }
 
-static int microhttpd_HandleGetOperation(md_context_t *ctx, md_client_t *client)
+static bool state_HandleOperationGet(struct md_client *client, uint32_t *consumed, bool *error)
 {
-   uint32_t idx, match_count = 0; 
+   struct md_context *ctx = client->ctx;
+   uint32_t idx, match_count = 0;
 
    DBG("%s: Searching %u GET operations\n", __func__, ctx->params.get_handler_count);
    for(idx = 0; idx < ctx->params.get_handler_count; ++idx)
    {
       tMicroHttpdGetHandlerEntry *entry = &ctx->params.get_handler_list[idx];
-      
-      if(strcmp(client->uri, entry->uri) == 0)
+
+      if(memcmp(entry->uri, client->uri, strlen(entry->uri)) == 0)
       {
          entry->handler((tMicroHttpdClient) client, client->uri,
             (const char **) client->uri_params, client->uri_param_count,
@@ -473,11 +396,16 @@ static int microhttpd_HandleGetOperation(md_context_t *ctx, md_client_t *client)
       }
    }
 
-   return 0;
+   DBG("%s: GET finished\n", __func__);
+   microhttpd_ResetState(client);
+
+   return true;
 }
 
-static int microhttpd_HandlePostOperation(md_context_t *ctx, md_client_t *client)
+static bool state_HandleOperationUnsupported(struct md_client *client, uint32_t *consumed, bool *error)
 {
-   /* TODO */
-   return 0;
+   DBG("%s: TODO\n", __func__);
+   microhttpd_ResetState(client);
+   return true;
 }
+

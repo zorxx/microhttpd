@@ -9,9 +9,9 @@ AR ?= ar
 RM ?= rm
 
 CFLAGS := -fPIC -O3 -Wall -Werror -I.
-CDEFS :=
+CDEFS := DEBUG
 
-SRC = microhttpd.c
+SRC = microhttpd.c helpers.c post.c client.c
 HEADERS = microhttpd_private.h microhttpd.h
 
 all: lib$(TARGET).a

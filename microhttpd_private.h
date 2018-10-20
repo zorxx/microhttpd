@@ -8,51 +8,66 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <sys/socket.h>
+#if !defined(MICROHTTPD_NO_NETINET_IN_H)
 #include <netinet/in.h>
+#endif
 #include "microhttpd.h"
 
 #define MICROHTTPD_SERVER_NAME               "microhttpd"
 #define MICROHTTPD_MAX_SOURCE_ADDRESS_LENGTH 30
-#define MICROHTTPD_MAX_QUEUED_CONNECTIONS    5
+#define MICROHTTPD_MAX_QUEUED_CONNECTIONS    10
 #define MICROHTTPD_MAX_HTTP_HEADER_OPTIONS   20
 #define MICROHTTPD_MAX_HTTP_URI_PARAMS       20
 
-#define MAX(x, y) (x) > (y) ? (x) : (y)
-#define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+struct md_client;
+struct md_context;
 
-typedef enum
-{
-   MD_OP_GET,
-   MD_OP_POST
-} md_operation_t;
+typedef bool (*md_state_machine_function)(struct md_client *client, uint32_t *consumed, bool *error);
 
-typedef struct
+struct md_client
 {
+   struct md_context *ctx;
+
    int socket;
    struct sockaddr_in socket_info;
    char source_address[MICROHTTPD_MAX_SOURCE_ADDRESS_LENGTH];
+
+   md_state_machine_function state;
+
    char *rx_buffer;
    uint32_t rx_buffer_size;
    uint32_t rx_size;
 
-   /* Parsed request */
+   /* HTTP Header */
+   char **header_entries;
+   uint32_t header_entry_count;
    char *operation, *uri, *http_version;
-   char *options[MICROHTTPD_MAX_HTTP_HEADER_OPTIONS];
-   uint32_t option_count;
    char *uri_params[MICROHTTPD_MAX_HTTP_URI_PARAMS];
    uint32_t uri_param_count;
 
-   /* Linked list */
-   void *prev;
-   void *next;
-} md_client_t;
+   /* POST */
+   char *filename;
+   char *post_boundary;
+   char **post_header_entries;
+   uint32_t post_header_entry_count;
+   uint32_t content_length;
+   uint32_t content_remaining;
+   uint32_t post_header_length;
+   uint32_t post_trailer_length;
 
-typedef struct
+   /* Linked list */
+   struct md_client *next;
+};
+
+struct md_context
 {
    tMicroHttpdParams params;
    bool running;
    int listen_socket;
-   md_client_t *client_list;
-} md_context_t;
+   struct md_client *client_list;
+};
+
+void microhttpd_ResetState(struct md_client *client);
 
 #endif /* _MICROHTTPD_PRIVATE_H */

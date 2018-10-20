@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><title>microhttpd</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-black.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+<script src="/helpers.js"></script> 
+<style>
+html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
+.w3-sidebar {
+  z-index: 3;
+  width: 250px;
+  top: 43px;
+  bottom: 35px;
+  height: inherit;
+}
+.bottombar {
+  text-decoration:none;
+  color:#787878;
+}
+.bottombar:hover {
+  color:#ffffff;
+}
+</style>
+</head><body>
+
+<div class="w3-top">
+  <div class="w3-bar w3-theme w3-top w3-left-align w3-large">
+    <a class="w3-bar-item w3-button w3-right w3-hide-large w3-hover-white w3-large w3-theme-l1" href="javascript:void(0)" onclick="w3_open()"><i class="fa fa-bars"></i></a>
+    <a href="https://github.com/zorxx/microhttpd" class="w3-bar-item w3-button w3-theme-l1">microhttpd</a>
+    <button class="w3-bar-item w3-button w3-hover-white" onclick="displayBody('get_content')">GET</button>
+    <button class="w3-bar-item w3-button w3-hover-white" onclick="displayBody('post_content')">POST</button>
+  </div>
+</div>
+
+<div class="w3-bottom">
+  <div class="w3-bar w3-theme w3-bottom">
+     <a href="http://www.zorxx.com" target="_blank" class="w3-bar-item w3-small w3-right bottombar">Zorxx Software</a>
+  </div>
+</div>  
+
+<nav class="w3-sidebar w3-bar-block w3-collapse w3-large w3-theme-l5 w3-animate-left" id="mySidebar" style="display: none;">
+  <a href="javascript:void(0)" onclick="w3_close()" class="w3-right w3-xlarge w3-padding-large w3-hover-black w3-hide-large" title="Close Menu">
+    <i class="fa fa-remove"></i>
+  </a>
+  <h4 class="w3-bar-item"><b>Status</b></h4>
+</nav>
+
+<div class="w3-overlay w3-hide-large" onclick="w3_close()" style="cursor: pointer; display: none;" title="close side menu" id="myOverlay"></div>
+
+  <div id="get_content" class="w3-main" style="margin-left:250px">
+    <div class="w3-padding-64">
+       <table cellpadding="10px"><tr>
+          <td><button class="w3-button w3-black" onclick="op(display_time,'update_time');">Update Time</button></td><td id="time_display">Time not yet queried</td>
+       </tr></table>
+    </div>
+  </div>
+
+  <div id="post_content" class="w3-main" style="margin-left:250px;display:none;">
+    <div id="image_list" class="w3-padding-64 w3-padding-large">
+      <form method="post" action="/upload_file" enctype="multipart/form-data"> 
+        <input type="file" id="upload_file" name="upload_file" accept="" />
+        <br/>
+        <input type="submit" value="Upload" />
+      </form>
+    </div>
+  </div>
+
+</div>
+
+<script>
+
+var mySidebar = document.getElementById("mySidebar");
+var overlayBg = document.getElementById("myOverlay");
+
+function display_time(result_text) {
+   document.getElementById("time_display").innerHTML = result_text;
+}
+
+$(document).ready(function() {
+}); 
+
+</script>
+
+</body></html>

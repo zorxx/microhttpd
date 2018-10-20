@@ -134,6 +134,25 @@ int microhttpd_process(tMicroHttpdContext context)
 static const char *RESPONSE_HEADER = "HTTP/1.1 %u\r\nServer: " MICROHTTPD_SERVER_NAME "\r\n"
    "Cache-control: no-cache\r\nPragma: no-cache\r\nAccept-Ranges: bytes\r\nContent-Length: %u\r\n";
 
+int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *content)
+{
+   struct md_client *c = (struct md_client *) client;
+   int32_t result;
+
+   if(0 == length || NULL == content)
+      return -1;
+
+   result = send(c->socket, content, length, 0);
+   if(result != length)
+   {
+      DBG("%s: Failed to send %u byte content (%d)\n", __func__, length, result);
+      /* TODO: close connection? */
+      return -1;
+   }
+
+   return 0;
+}
+
 int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *content_type,
    uint32_t content_length, const char *extra_header_options, const char *content)
 {
@@ -174,18 +193,8 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
    }
    free(tx);
 
-   /* Send any content */
    if(content_length > 0 && NULL != content)
-   {
-      result = send(c->socket, content, content_length, 0);
-      if(result != content_length)
-      {
-         DBG("%s: Failed to send %u byte content (%d)\n", __func__, content_length, result);
-         /* TODO: close connection? */
-         return -1;
-      }
-   }
-
+      return microhttpd_send_data(client, content_length, content);
    return 0;
 }
 

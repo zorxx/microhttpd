@@ -49,8 +49,10 @@ typedef struct
 
 tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params);
 int microhttpd_process(tMicroHttpdContext context);
+
 int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *content_type,
    uint32_t content_length, const char *extra_header_options, const char *content);
+int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *content);
 
 #if defined(__cplusplus)
 }

@@ -1,0 +1,5 @@
+language: c
+script: make
+script:
+    - make all
+    - make -C test all

@@ -1,6 +1,8 @@
 # microhttpd
 micro-sized HTTP server
 
+[![Build Status](https://travis-ci.org/zorxx/microhttpd.svg?branch=master)](https://travis-ci.org/zorxx/microhttpd)
+
 ## Overview
 There are lots of small web server implementations. microhttpd is designed to have a small code footprint, minimal dependencies, and sufficient configuration to support a wide-variety of applications.
 
@@ -38,7 +40,7 @@ static tMicroHttpdGetHandlerEntry get_handler_list[] =
 int main(int argc, char *argv[])
 {
    tMicroHttpdParams params = {0};
-   void *ctx;
+   tMicroHttpdContext ctx;
 
    params.server_port = 80;
    params.process_timeout = 0;

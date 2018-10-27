@@ -30,7 +30,7 @@ static tMicroHttpdGetHandlerEntry get_handler_list[] =
 int main(int argc, char *argv[])
 {
    tMicroHttpdParams params = {0};
-   void *ctx;
+   tMicroHttpdContext ctx;
 
    params.server_port = 80;
    params.process_timeout = 0;

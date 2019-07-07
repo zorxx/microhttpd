@@ -8,7 +8,11 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#if defined(LWIP_SOCKET)
+#include <lwip/sockets.h>
+#else
 #include <sys/socket.h>
+#endif
 #if !defined(MICROHTTPD_NO_NETINET_IN_H)
 #include <netinet/in.h>
 #endif

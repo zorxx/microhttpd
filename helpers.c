@@ -4,7 +4,7 @@
  *  \brief microhttpd helpers
  */
 #include <unistd.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
 #include "debug.h"

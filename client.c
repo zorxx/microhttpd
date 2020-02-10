@@ -4,7 +4,7 @@
  *  \brief microhttpd client Implementation 
  */
 #include <unistd.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <string.h>
 #include "debug.h"
 #include "helpers.h"

@@ -4,7 +4,6 @@
  *  \brief microhttpd Implementation 
  */
 #include <unistd.h>
-#include <malloc.h>
 #include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>

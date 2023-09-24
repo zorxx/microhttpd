@@ -23,7 +23,7 @@ $(TARGET): $(foreach src,$(SRC),$(src:.c=.o)) ../libmicrohttpd.a
 
 %.o: %.c
 	$(info CC $^ -> $@)
-	@$(CC) $(CFLAGS) $(foreach def,$(CDEFS),-D$(def)) -c $^ -o $@
+	@$(CC) $(CFLAGS) $(foreach def,$(CDEFS),-D$(def)) -I../include -c $^ -o $@
 
 clean:
 	$(info CLEAN)	

@@ -13,7 +13,7 @@
 #include "client.h"
 #include "post.h"
 #include "microhttpd_private.h"
-#include "microhttpd.h"
+#include "microhttpd/microhttpd.h"
 
 // Forward function declarations
 static int microhttpd_CreateListeningSocket(struct md_context *ctx);

@@ -16,7 +16,7 @@
 #if !defined(MICROHTTPD_NO_NETINET_IN_H)
 #include <netinet/in.h>
 #endif
-#include "microhttpd.h"
+#include "microhttpd/microhttpd.h"
 
 #define MICROHTTPD_SERVER_NAME               "microhttpd"
 #define MICROHTTPD_MAX_SOURCE_ADDRESS_LENGTH 30

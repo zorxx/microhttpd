@@ -8,7 +8,9 @@
 #include <string.h>
 #include <malloc.h>
 #include <sys/time.h>
-#include "microhttpd.h"
+#include "microhttpd/microhttpd.h"
+
+#define SERVER_PORT 8090
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 #define FILE_BUFFER_SIZE 2048
@@ -32,7 +34,7 @@ int main(int argc, char *argv[])
    tMicroHttpdParams params = {0};
    tMicroHttpdContext ctx;
 
-   params.server_port = 80;
+   params.server_port = SERVER_PORT;
    params.process_timeout = 0;
    params.rx_buffer_size = 2048;
    params.get_handler_list = get_handler_list;

@@ -9,7 +9,7 @@ AR ?= ar
 RM ?= rm
 
 CFLAGS := -fPIC -O3 -Wall -Werror -I.
-CDEFS := DEBUG
+#CDEFS += DEBUG
 
 SRC = microhttpd.c helpers.c post.c client.c
 HEADERS = microhttpd_private.h microhttpd.h
@@ -22,7 +22,7 @@ lib$(TARGET).a: $(foreach src,$(SRC),$(src:.c=.o))
 
 %.o: %.c
 	$(info CC $^ -> $@)
-	@$(CC) $(CFLAGS) $(foreach def,$(CDEFS),-D$(def)) -c $^ -o $@
+	@$(CC) $(CFLAGS) $(foreach def,$(CDEFS),-D$(def)) -Iinclude -c $^ -o $@
 
 clean:
 	$(info CLEAN)	

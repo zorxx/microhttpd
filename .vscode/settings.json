@@ -1,0 +1,6 @@
+{
+    "cmake.configureArgs": [
+        "-DBUILD_TESTS=ON"
+        "-DDEBUG_PRINT=ON"
+    ]
+}

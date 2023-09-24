@@ -58,12 +58,17 @@ int main(int argc, char *argv[])
 
 static void send_not_found(tMicroHttpdClient client, const char *uri)
 {
-   char *content = malloc(strlen(uri) + 50);
+   int urilen = strlen(uri);
+   char *content;
 
+   if(urilen > 50)
+      urilen = 50;
+   urilen += 60;
+   content = malloc(urilen);
    if(NULL == content)
       return;
 
-   sprintf(content, "<html><title>Not Found</title>Not found: %s</html>", uri);
+   snprintf(content, urilen, "<html><title>Not Found</title>Not found: %s</html>", uri);
    microhttpd_send_response(client, 404, "text/html", strlen(content), NULL, content);
    free(content);
 }
@@ -78,10 +83,11 @@ static void handle_test(tMicroHttpdClient client, const char *uri,
 static void handle_ajax(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
-   if(param_count == 0)
+   if(param_count == 0 || param_list[0] == NULL || strlen(param_list[0]) == 0)
    {
       DBG("%s: No AJAX operation specified\n", __func__);
       send_not_found(client, uri);
+      return;
    }
 
    if(param_count > 0 && strcmp(param_list[0], "update_time") == 0)

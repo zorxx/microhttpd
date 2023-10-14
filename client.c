@@ -5,6 +5,7 @@
  */
 #include <unistd.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <string.h>
 #include "debug.h"
 #include "helpers.h"
@@ -77,19 +78,19 @@ int microhttpd_HandleClientReceive(struct md_context *ctx, struct md_client *cli
 
    if(space_left <= 0)
    {
-      DBG("%s: Invalid space remaining (%d)\n", __func__, space_left);
+      DBG("%s: Invalid space remaining (%"PRIi32")\n", __func__, space_left);
       return microhttpd_RemoveClient(ctx, client);
    }
-   DBG("%s: Receive at offset %u, %u bytes reamining\n",
+   DBG("%s: Receive at offset %"PRIu32", %"PRIu32" bytes remaining\n",
       __func__, client->rx_size, space_left);
    length = read(client->socket, &client->rx_buffer[client->rx_size], space_left); 
    if(length <= 0)
    {
-      DBG("%s: Read failed (%d)\n", __func__, length);
+      DBG("%s: Read failed (%"PRIi32")\n", __func__, length);
       return microhttpd_RemoveClient(ctx, client);
    }
    client->rx_size += length;
-   DBG("%s: Received %u bytes (total now %u)\n", __func__, length, client->rx_size);
+   DBG("%s: Received %"PRIu32" bytes (total now %"PRIu32")\n", __func__, length, client->rx_size);
 
    cont = true;
    do
@@ -108,7 +109,7 @@ int microhttpd_HandleClientReceive(struct md_context *ctx, struct md_client *cli
       {
          if(client->rx_size < consumed)
          {
-            DBG("%s: Rx buffer underrun (consumed %u of %u bytes)\n",
+            DBG("%s: Rx buffer underrun (consumed %"PRIu32" of %"PRIu32" bytes)\n",
                __func__, consumed, client->rx_size);
             return microhttpd_RemoveClient(ctx, client);
          }

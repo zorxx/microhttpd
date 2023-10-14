@@ -5,6 +5,7 @@
  */
 #include <unistd.h>
 #include <string.h>
+#include<inttypes.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -91,7 +92,7 @@ int microhttpd_process(tMicroHttpdContext context)
       ++client_count;
    }
 
-   DBG("%s: Waiting for %u clients\n", __func__, client_count);
+   DBG("%s: Waiting for %"PRIu32" clients\n", __func__, client_count);
 
    nResult = select(fd_max + 1, &fdRead, NULL, &fdError, pTimeout);
    if(nResult == 0)
@@ -144,7 +145,7 @@ int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *
    result = send(c->socket, content, length, 0);
    if(result != length)
    {
-      DBG("%s: Failed to send %u byte content (%d)\n", __func__, length, result);
+      DBG("%s: Failed to send %"PRIu32" byte content (%"PRIi32")\n", __func__, length, result);
       /* TODO: close connection? */
       return -1;
    }
@@ -167,7 +168,7 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
    tx = malloc(length);
    if(NULL == tx)
    {
-      DBG("%s: Failed to allocate response buffer (%d bytes)\n", __func__, length);
+      DBG("%s: Failed to allocate response buffer (%"PRIi32" bytes)\n", __func__, length);
       return -1;
    }
    
@@ -185,7 +186,7 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
    result = send(c->socket, tx, length, 0);
    if(result != length)
    {
-      DBG("%s: Failed to send %d byte header (%d)\n", __func__, length, result);
+      DBG("%s: Failed to send %"PRIi32" byte header (%"PRIi32")\n", __func__, length, result);
       free(tx);
       /* TODO: close connection? */
       return -1;
@@ -278,12 +279,12 @@ static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool
    length = offset - client->rx_buffer;
    if(0 == length)
    {
-      DBG("%s: Header parsing complete (%u entries)\n", __func__, client->header_entry_count);
+      DBG("%s: Header parsing complete (%"PRIu32" entries)\n", __func__, client->header_entry_count);
       client->state = state_HeaderComplete; /* Empty header entry found; header complete */
       *consumed = 2;
       return true;
    }
-   DBG("%s: Found header option (length %u)\n", __func__, length);
+   DBG("%s: Found header option (length %"PRIu32")\n", __func__, length);
 
    if(!string_list_add(client->rx_buffer, length, &client->header_entries,
       &client->header_entry_count))
@@ -296,7 +297,7 @@ static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool
    if(client->header_entry_count > 1)
       lower(client->header_entries[client->header_entry_count-1]);
 
-   DBG("%s: Header option %u: '%s'\n", __func__, client->header_entry_count,
+   DBG("%s: Header option %"PRIu32": '%s'\n", __func__, client->header_entry_count,
       client->header_entries[client->header_entry_count-1]);
 
    *consumed = length + 2;
@@ -342,14 +343,14 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
          || strlen(client->uri_params[client->uri_param_count]) == 0)
          {
             client->uri_params[client->uri_param_count] = offset;
-            DBG("%s: Final URI parameter %u '%s'\n", __func__, client->uri_param_count,
+            DBG("%s: Final URI parameter %"PRIu32" '%s'\n", __func__, client->uri_param_count,
                client->uri_params[client->uri_param_count]);
             ++(client->uri_param_count);
             done = true;
          }
          else
          {
-            DBG("%s: URI parameter %u '%s'\n", __func__, client->uri_param_count,
+            DBG("%s: URI parameter %"PRIu32" '%s'\n", __func__, client->uri_param_count,
                client->uri_params[client->uri_param_count]);
             ++(client->uri_param_count);
          }
@@ -378,7 +379,7 @@ static bool state_HandleOperationGet(struct md_client *client, uint32_t *consume
    struct md_context *ctx = client->ctx;
    uint32_t idx, match_count = 0;
 
-   DBG("%s: Searching %u GET operations\n", __func__, ctx->params.get_handler_count);
+   DBG("%s: Searching %"PRIu32" GET operations\n", __func__, ctx->params.get_handler_count);
    for(idx = 0; idx < ctx->params.get_handler_count; ++idx)
    {
       tMicroHttpdGetHandlerEntry *entry = &ctx->params.get_handler_list[idx];

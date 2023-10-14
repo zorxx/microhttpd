@@ -5,6 +5,7 @@
  */
 #include <stdlib.h>
 #include <string.h>
+#include <inttypes.h>
 #include "debug.h"
 #include "helpers.h"
 #include "post.h"
@@ -54,14 +55,14 @@ static bool state_HandlePostHeader(struct md_client *client, uint32_t *consumed,
    length = offset - client->rx_buffer;
    if(0 == length)
    {
-      DBG("%s: Header parsing complete (%u entries)\n", __func__, client->header_entry_count);
+      DBG("%s: Header parsing complete (%"PRIu32" entries)\n", __func__, client->header_entry_count);
       client->state = state_HandlePostHeaderComplete; /* Empty header entry found; header complete */
 
       client->content_remaining -= 2;
       *consumed = 2;
       return true;
    }
-   DBG("%s: Found header option (length %u)\n", __func__, length);
+   DBG("%s: Found header option (length %"PRIu32")\n", __func__, length);
 
    if(!string_list_add(client->rx_buffer, length, &client->post_header_entries,
       &client->post_header_entry_count))
@@ -71,7 +72,7 @@ static bool state_HandlePostHeader(struct md_client *client, uint32_t *consumed,
       return false;
    }
 
-   DBG("%s: Header option %u: '%s'\n", __func__, client->post_header_entry_count,
+   DBG("%s: Header option %"PRIu32": '%s'\n", __func__, client->post_header_entry_count,
       client->post_header_entries[client->post_header_entry_count - 1]);
 
    client->content_remaining -= length + 2;
@@ -117,13 +118,13 @@ static bool state_HandlePostHeaderComplete(struct md_client *client, uint32_t *c
    client->post_trailer_length = strlen(client->post_boundary);
    if(client->content_length < (client->post_header_length + client->post_trailer_length))
    {
-      DBG("%s: Invalid post data length (total %u, header %u, footer %u\n", __func__,
+      DBG("%s: Invalid post data length (total %"PRIu32", header %"PRIu32", footer %"PRIu32"\n", __func__,
          client->content_length, client->post_header_length, client->post_trailer_length);
    }
    else
    {
       client->content_length -= (client->post_header_length + client->post_trailer_length);
-      DBG("%s: POST data lengths (total %u, header %u, footer %u\n", __func__,
+      DBG("%s: POST data lengths (total %"PRIu32", header %"PRIu32", footer %"PRIu32"\n", __func__,
          client->content_length, client->post_header_length, client->post_trailer_length);
    }
 
@@ -148,7 +149,7 @@ static bool state_HandlePostData(struct md_client *client, uint32_t *consumed, b
       handled_length = client->rx_size;
       
    client->content_remaining -= handled_length; 
-   DBG("%s: POST total length %u, current length %u, remaining length %u\n",
+   DBG("%s: POST total length %"PRIu32", current length %"PRIu32", remaining length %"PRIu32"\n",
       __func__, client->content_length, handled_length, client->content_remaining);
 
    data_length = handled_length;
@@ -156,7 +157,7 @@ static bool state_HandlePostData(struct md_client *client, uint32_t *consumed, b
       data_length -= client->post_trailer_length - client->content_remaining;
    if(data_length > 0 && ctx->params.post_handler != NULL)
    {
-      DBG("%s: Sending %u bytes of data to application\n", __func__, data_length);
+      DBG("%s: Sending %"PRIu32" bytes of data to application\n", __func__, data_length);
       ctx->params.post_handler((tMicroHttpdClient) client, client->uri, client->filename,
          (const char **) client->uri_params, client->uri_param_count,
          client->source_address, ctx->params.post_handler_cookie,

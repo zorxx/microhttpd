@@ -153,6 +153,7 @@ int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *
    return 0;
 }
 
+static const char *CONTENT_TYPE_FIELD = "Content-Type: %s\r\n";
 int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *content_type,
    uint32_t content_length, const char *extra_header_options, const char *content)
 {
@@ -164,7 +165,7 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
    if(NULL != extra_header_options)
       length += strlen(extra_header_options);
    if(content_type != NULL)
-      length += strlen(content_type) + 20;
+      length += strlen(CONTENT_TYPE_FIELD) + strlen(content_type);
    tx = malloc(length);
    if(NULL == tx)
    {
@@ -180,18 +181,16 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
       length += strlen(extra_header_options);
    }
    if(content_type != NULL)
-      length += sprintf(&tx[length], "Content-Type: %s\r\n", content_type);
-   strcpy(&tx[length], "\r\n");
-   length += 2;
+      length += sprintf(&tx[length], CONTENT_TYPE_FIELD, content_type);
+   length += sprintf(&tx[length], "\r\n");
    result = send(c->socket, tx, length, 0);
+   free(tx);
    if(result != length)
    {
       DBG("%s: Failed to send %"PRIi32" byte header (%"PRIi32")\n", __func__, length, result);
-      free(tx);
       /* TODO: close connection? */
       return -1;
    }
-   free(tx);
 
    if(content_length > 0 && NULL != content)
       return microhttpd_send_data(client, content_length, content);
@@ -366,10 +365,7 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
    else if(memcmp(client->operation, "POST", 4) == 0)
       client->state = state_HandleOperationPost;
    else
-   {
-      DBG("%s: Unsupported HTTP operation '%s'\n", __func__, client->operation);
       client->state = state_HandleOperationUnsupported;
-   }
 
    return true;
 }
@@ -407,13 +403,12 @@ static bool state_HandleOperationGet(struct md_client *client, uint32_t *consume
 
    DBG("%s: GET finished\n", __func__);
    microhttpd_ResetState(client);
-
    return true;
 }
 
 static bool state_HandleOperationUnsupported(struct md_client *client, uint32_t *consumed, bool *error)
 {
-   DBG("%s: TODO\n", __func__);
+   DBG("%s: Unsupported HTTP operation '%s'\n", __func__, client->operation);
    microhttpd_ResetState(client);
    return true;
 }

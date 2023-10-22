@@ -1,10 +1,11 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file helpers.c
  *  \brief microhttpd helpers
  */
 #include <unistd.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include <string.h>
 #include <ctype.h>
 #include "debug.h"
@@ -42,7 +43,7 @@ void string_shift(char *string, uint32_t shift, uint32_t length)
 {
    uint32_t offset;
 
-   ASSERT(length >= shift);
+   MH_ASSERT(length >= shift);
 
    for(offset = 0; offset < (length - shift); ++offset)
    {
@@ -56,13 +57,17 @@ void string_shift(char *string, uint32_t shift, uint32_t length)
 char *string_chop(char **string, uint32_t *string_length, char *delimiter,
    uint32_t delimiter_length)
 {
-   char *start = *string;
+   char *start;
    uint32_t offset = 0;
 
-   ASSERT(string_length > 0);
-   ASSERT(delimiter_length > 0);
-   ASSERT(*string != NULL);
-   ASSERT(delimiter != NULL);
+   MH_ASSERT(NULL != string_length);
+   MH_ASSERT(NULL != string);
+   MH_ASSERT(NULL != delimiter);
+   MH_ASSERT(NULL != *string);
+   MH_ASSERT(*string_length > 0);
+   MH_ASSERT(delimiter_length > 0);
+
+   start = *string;
 
    while(offset < delimiter_length && *string_length > 0)
    {
@@ -104,8 +109,13 @@ void string_list_clear(char ***string_list, uint32_t *list_size)
 {
    uint32_t idx;
 
+   MH_ASSERT(NULL != list_size);
+   MH_ASSERT(NULL != string_list);
+
    if(*string_list == NULL)
       return;
+
+   MH_DBG("%s: Clearing %"PRIu32" strings\n", __func__, *list_size);
 
    for(idx = 0; idx < *list_size; ++idx)
       free((*string_list)[idx]);

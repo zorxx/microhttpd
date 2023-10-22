@@ -1,4 +1,4 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file microhttpd.h
  *  \brief microhttpd External Interface

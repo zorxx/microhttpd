@@ -1,11 +1,12 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file microhttpd.c
  *  \brief microhttpd Implementation 
  */
 #include <unistd.h>
 #include <string.h>
-#include<inttypes.h>
+#include <errno.h>
+#include <inttypes.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -24,6 +25,10 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
 static bool state_HandleOperationGet(struct md_client *client, uint32_t *consumed, bool *error);
 static bool state_HandleOperationUnsupported(struct md_client *client, uint32_t *consumed, bool *error);
 
+static const char *RESPONSE_HEADER = "HTTP/1.1 %u\r\nServer: " MICROHTTPD_SERVER_NAME "\r\n"
+   "Cache-control: no-cache\r\nPragma: no-cache\r\nAccept-Ranges: bytes\r\nContent-Length: %u\r\n";
+static const char *CONTENT_TYPE_FIELD = "Content-Type: %s\r\n";
+
 /* -------------------------------------------------------------------------------------------------
  * Exported Functions
  */
@@ -34,14 +39,14 @@ tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params)
 
    if(params->rx_buffer_size == 0)
    {
-      DBG("%s: Invalid receive buffer size\n", __func__);
+      MH_DBG("%s: Invalid receive buffer size\n", __func__);
       return NULL;
    }
 
    ctx = (struct md_context *) malloc(sizeof(*ctx));
    if(NULL == ctx)
    {
-      DBG("%s: Failed to allocate context structure\n", __func__);
+      MH_DBG("%s: Failed to allocate context structure\n", __func__);
       return NULL; 
    }
    memset(ctx, 0, sizeof(*ctx));
@@ -49,7 +54,7 @@ tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params)
 
    if(microhttpd_CreateListeningSocket(ctx) != 0)
    {
-      DBG("%s: Failed to create server listening socket on port %u\n",
+      MH_DBG("%s: Failed to create server listening socket on port %u\n",
          __func__, params->server_port);
       return NULL;
    }
@@ -65,10 +70,10 @@ int microhttpd_process(tMicroHttpdContext context)
    uint32_t client_count = 0;
    fd_set fdRead;
    fd_set fdError;
-   struct md_client *client;
+   struct md_client *client, **client_list;
    struct timeval timeout, *pTimeout = NULL;
 
-   DBG("%s\n", __func__);
+   MH_DBG("%s\n", __func__);
 
    if(!ctx->running)
      return -1;
@@ -92,25 +97,47 @@ int microhttpd_process(tMicroHttpdContext context)
       ++client_count;
    }
 
-   DBG("%s: Waiting for %"PRIu32" clients\n", __func__, client_count);
+   // Make a copy of the client list that was used to populate the upcoming select call. This
+   //  is necessary since the client list can change (shrink) as select events are processed.
+   client_list = (struct md_client **) malloc(sizeof(struct md_client *) * client_count);
+   client = ctx->client_list;
+   for(int i = 0; i < client_count; ++i)
+   {
+      client_list[i] = client;
+      client = client->next;
+   }
+
+   MH_DBG("%s: Waiting for %"PRIu32" clients\n", __func__, client_count);
 
    nResult = select(fd_max + 1, &fdRead, NULL, &fdError, pTimeout);
    if(nResult == 0)
+   {
+      free(client_list);
       return 0;  /* Nothing received within timeout */
+   }
    if(nResult < 0)
    {
-      DBG("%s: select failed (%d)\n", __func__, nResult); 
+      MH_DBG("%s: select failed (errno %d)\n", __func__, errno);
+      // Go through the list of clients and prune any closed sockets
+      for(int i = 0; i < client_count; ++i)
+      {
+         if(fcntl(client_list[i]->socket, F_GETFD) != 0)
+            microhttpd_RemoveClient(ctx, client_list[i]);
+      }
+      free(client_list);
       return -1;
    }
 
    /* First, process any data received from clients */
-   for(client = ctx->client_list; client != NULL; client =(struct md_client *) client->next)
+   for(int i = 0; i < client_count; ++i)
    {
+      client = client_list[i];
       if(FD_ISSET(client->socket, &fdError))
          microhttpd_HandleClientError(ctx, client);
       else if(FD_ISSET(client->socket, &fdRead))
          microhttpd_HandleClientReceive(ctx, client);
    }
+   free(client_list);
 
    /* Finally, accept any new clients */
    if(FD_ISSET(ctx->listen_socket, &fdRead))
@@ -122,7 +149,7 @@ int microhttpd_process(tMicroHttpdContext context)
       nSocket = accept(ctx->listen_socket, (struct sockaddr *) &info, &length);
       if(nSocket < 0)
       {
-         DBG("%s: Failed to accept client (%d)\n", __func__, nSocket);
+         MH_DBG("%s: Failed to accept client (%d)\n", __func__, nSocket);
       }
       else
          microhttpd_NewClient(ctx, nSocket, &info);
@@ -130,9 +157,6 @@ int microhttpd_process(tMicroHttpdContext context)
 
    return 0; 
 }
-
-static const char *RESPONSE_HEADER = "HTTP/1.1 %u\r\nServer: " MICROHTTPD_SERVER_NAME "\r\n"
-   "Cache-control: no-cache\r\nPragma: no-cache\r\nAccept-Ranges: bytes\r\nContent-Length: %u\r\n";
 
 int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *content)
 {
@@ -145,7 +169,7 @@ int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *
    result = send(c->socket, content, length, 0);
    if(result != length)
    {
-      DBG("%s: Failed to send %"PRIu32" byte content (%"PRIi32")\n", __func__, length, result);
+      MH_DBG("%s: Failed to send %"PRIu32" byte content (%"PRIi32")\n", __func__, length, result);
       /* TODO: close connection? */
       return -1;
    }
@@ -153,7 +177,6 @@ int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *
    return 0;
 }
 
-static const char *CONTENT_TYPE_FIELD = "Content-Type: %s\r\n";
 int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *content_type,
    uint32_t content_length, const char *extra_header_options, const char *content)
 {
@@ -169,7 +192,7 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
    tx = malloc(length);
    if(NULL == tx)
    {
-      DBG("%s: Failed to allocate response buffer (%"PRIi32" bytes)\n", __func__, length);
+      MH_DBG("%s: Failed to allocate response buffer (%"PRIi32" bytes)\n", __func__, length);
       return -1;
    }
    
@@ -187,7 +210,7 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
    free(tx);
    if(result != length)
    {
-      DBG("%s: Failed to send %"PRIi32" byte header (%"PRIi32")\n", __func__, length, result);
+      MH_DBG("%s: Failed to send %"PRIi32" byte header (%"PRIi32")\n", __func__, length, result);
       /* TODO: close connection? */
       return -1;
    }
@@ -220,14 +243,14 @@ static int microhttpd_CreateListeningSocket(struct md_context *ctx)
    ctx->listen_socket = socket(AF_INET, SOCK_STREAM, 0);
    if(ctx->listen_socket < 0)
    {
-      DBG("%s: Failed to create listening socket\n", __func__);
+      MH_DBG("%s: Failed to create listening socket\n", __func__);
    }
    else
    {
       int enable = 1;
       if(setsockopt(ctx->listen_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable)) < 0)
       {
-         DBG("%s: Failed to enable SO_REUSEADDR\n", __func__); /* Don't treat this as a fatal error */
+         MH_DBG("%s: Failed to enable SO_REUSEADDR\n", __func__); /* Don't treat this as a fatal error */
       }
 
       sinAddress.sin_family = AF_INET;
@@ -235,20 +258,20 @@ static int microhttpd_CreateListeningSocket(struct md_context *ctx)
       sinAddress.sin_port = htons(ctx->params.server_port);
       if(bind(ctx->listen_socket, (struct sockaddr*) &sinAddress, sizeof(sinAddress)) < 0)
       {
-         DBG("%s: Error binding on port %u\n", __func__, ctx->params.server_port); 
+         MH_DBG("%s: Error binding on port %u\n", __func__, ctx->params.server_port); 
       }
       else if(fcntl(ctx->listen_socket, F_SETFL, 
          fcntl(ctx->listen_socket, F_GETFL, 0) | O_NONBLOCK) != 0)
       {
-         DBG("%s: Failed to set non-blocking mode on listening socket\n", __func__);
+         MH_DBG("%s: Failed to set non-blocking mode on listening socket\n", __func__);
       }
       else if(listen(ctx->listen_socket, MICROHTTPD_MAX_QUEUED_CONNECTIONS))
       {
-         DBG("%s: Failed to listen on server socket\n", __func__);
+         MH_DBG("%s: Failed to listen on server socket\n", __func__);
       }
       else
       {
-         DBG("%s: Server running on port %u\n", __func__, ctx->params.server_port);
+         MH_DBG("%s: Server running on port %u\n", __func__, ctx->params.server_port);
          result = 0;
       }
 
@@ -278,17 +301,17 @@ static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool
    length = offset - client->rx_buffer;
    if(0 == length)
    {
-      DBG("%s: Header parsing complete (%"PRIu32" entries)\n", __func__, client->header_entry_count);
+      MH_DBG("%s: Header parsing complete (%"PRIu32" entries)\n", __func__, client->header_entry_count);
       client->state = state_HeaderComplete; /* Empty header entry found; header complete */
       *consumed = 2;
       return true;
    }
-   DBG("%s: Found header option (length %"PRIu32")\n", __func__, length);
+   MH_DBG("%s: Found header option (length %"PRIu32")\n", __func__, length);
 
    if(!string_list_add(client->rx_buffer, length, &client->header_entries,
       &client->header_entry_count))
    {
-      DBG("%s: Failed to allocate header entry list\n", __func__);
+      MH_DBG("%s: Failed to allocate header entry list\n", __func__);
       *error = true;
       return false;
    }
@@ -296,7 +319,7 @@ static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool
    if(client->header_entry_count > 1)
       lower(client->header_entries[client->header_entry_count-1]);
 
-   DBG("%s: Header option %"PRIu32": '%s'\n", __func__, client->header_entry_count,
+   MH_DBG("%s: Header option %"PRIu32": '%s'\n", __func__, client->header_entry_count,
       client->header_entries[client->header_entry_count-1]);
 
    *consumed = length + 2;
@@ -310,7 +333,7 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
 
    if(client->header_entry_count == 0)
    {
-      DBG("%s: No header entries\n", __func__);
+      MH_DBG("%s: No header entries\n", __func__);
       *error = true;
       return false;
    }
@@ -319,11 +342,11 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
    offset = client->header_entries[0];
    remaining = strlen(offset);
    client->operation = string_chop(&offset, &remaining, " ", 1);
-   DBG("%s: operation '%s'\n", __func__, client->operation);
+   MH_DBG("%s: operation '%s'\n", __func__, client->operation);
    client->uri = string_chop(&offset, &remaining, " ", 1);
-   DBG("%s: uri '%s'\n", __func__, client->uri);
+   MH_DBG("%s: uri '%s'\n", __func__, client->uri);
    client->http_version = offset;
-   DBG("%s: http version '%s'\n", __func__, client->http_version);
+   MH_DBG("%s: http version '%s'\n", __func__, client->http_version);
 
    /* Parse parameters in the URI */
    offset = strchr(client->uri, '?');
@@ -342,14 +365,14 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
          || strlen(client->uri_params[client->uri_param_count]) == 0)
          {
             client->uri_params[client->uri_param_count] = offset;
-            DBG("%s: Final URI parameter %"PRIu32" '%s'\n", __func__, client->uri_param_count,
+            MH_DBG("%s: Final URI parameter %"PRIu32" '%s'\n", __func__, client->uri_param_count,
                client->uri_params[client->uri_param_count]);
             ++(client->uri_param_count);
             done = true;
          }
          else
          {
-            DBG("%s: URI parameter %"PRIu32" '%s'\n", __func__, client->uri_param_count,
+            MH_DBG("%s: URI parameter %"PRIu32" '%s'\n", __func__, client->uri_param_count,
                client->uri_params[client->uri_param_count]);
             ++(client->uri_param_count);
          }
@@ -357,7 +380,7 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
          if(client->uri_param_count >= ARRAY_SIZE(client->uri_params))
             done = true;
       }
-      DBG("%s: Trimmed URI '%s'\n", __func__, client->uri);
+      MH_DBG("%s: Trimmed URI '%s'\n", __func__, client->uri);
    }
 
    if(memcmp(client->operation, "GET", 3) == 0)
@@ -375,7 +398,7 @@ static bool state_HandleOperationGet(struct md_client *client, uint32_t *consume
    struct md_context *ctx = client->ctx;
    uint32_t idx, match_count = 0;
 
-   DBG("%s: Searching %"PRIu32" GET operations\n", __func__, ctx->params.get_handler_count);
+   MH_DBG("%s: Searching %"PRIu32" GET operations\n", __func__, ctx->params.get_handler_count);
    for(idx = 0; idx < ctx->params.get_handler_count; ++idx)
    {
       tMicroHttpdGetHandlerEntry *entry = &ctx->params.get_handler_list[idx];
@@ -391,24 +414,24 @@ static bool state_HandleOperationGet(struct md_client *client, uint32_t *consume
 
    if(0 == match_count)
    {
-      DBG("%s: No matches found for URI '%s'\n", __func__, client->uri);
+      MH_DBG("%s: No matches found for URI '%s'\n", __func__, client->uri);
       if(ctx->params.default_get_handler != NULL)
       {
-         DBG("%s: Calling default GET handler\n", __func__);
+         MH_DBG("%s: Calling default GET handler\n", __func__);
          ctx->params.default_get_handler((tMicroHttpdClient) client, client->uri,
             (const char **) client->uri_params, client->uri_param_count,
             client->source_address, ctx->params.default_get_handler_cookie);
       }
    }
 
-   DBG("%s: GET finished\n", __func__);
+   MH_DBG("%s: GET finished\n", __func__);
    microhttpd_ResetState(client);
    return true;
 }
 
 static bool state_HandleOperationUnsupported(struct md_client *client, uint32_t *consumed, bool *error)
 {
-   DBG("%s: Unsupported HTTP operation '%s'\n", __func__, client->operation);
+   MH_DBG("%s: Unsupported HTTP operation '%s'\n", __func__, client->operation);
    microhttpd_ResetState(client);
    return true;
 }

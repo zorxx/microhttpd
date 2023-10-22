@@ -1,7 +1,7 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file debug.h
- *  \brief microhttpd Debug 
+ *  \brief microhttpd debug
  */
 #ifndef _MICROHTTPD_DEBUG_H
 #define _MICROHTTPD_DEBUG_H
@@ -10,11 +10,11 @@
 #include <assert.h>
 
 #if defined(DEBUG)
-#define DBG printf
-#define ASSERT assert
+#define MH_DBG printf
+#define MH_ASSERT(x) assert(x)
 #else
-#define DBG(...)
-#define ASSERT(x)
+#define MH_DBG(...)
+#define MH_ASSERT(x)
 #endif
 
 #endif /* _MICROHTTPD_DEBUG_H */

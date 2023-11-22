@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html><head>
-<meta http-equiv="content-type" content="text/html; charset=UTF-8"><title>microhttpd</title>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8"><title>Solar Controller</title>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
@@ -25,15 +25,18 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
 .bottombar:hover {
   color:#ffffff;
 }
+.zebra tr:nth-child(even) {
+  background-color: #ccc;
+}
 </style>
 </head><body>
 
 <div class="w3-top">
   <div class="w3-bar w3-theme w3-top w3-left-align w3-large">
     <a class="w3-bar-item w3-button w3-right w3-hide-large w3-hover-white w3-large w3-theme-l1" href="javascript:void(0)" onclick="w3_open()"><i class="fa fa-bars"></i></a>
-    <a href="https://github.com/zorxx/microhttpd" class="w3-bar-item w3-button w3-theme-l1">microhttpd</a>
-    <button class="w3-bar-item w3-button w3-hover-white" onclick="displayBody('get_content')">GET</button>
-    <button class="w3-bar-item w3-button w3-hover-white" onclick="displayBody('post_content')">POST</button>
+    <a href="#" class="w3-bar-item w3-button w3-theme-l1">Solar Controller</a>
+    <button class="w3-bar-item w3-button w3-hover-white" onclick="displayBody('home_content')">Home</button>
+    <button class="w3-bar-item w3-button w3-hover-white" onclick="displayBody('upgrade_content')">Upgrade</button>
   </div>
 </div>
 
@@ -48,24 +51,30 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
     <i class="fa fa-remove"></i>
   </a>
   <h4 class="w3-bar-item"><b>Status</b></h4>
+  <table style="font-size:14px;" cellspacing="0" id="status_table" width="100%" class="w3-padding zebra">
+    <tr><td>Load Voltage</td><td><div id="Load_Voltage_display"></div></td></tr>
+    <tr><td>Load Current</td><td><div id="Load_Current_display"></div></td></tr>
+    <tr><td>PV Voltage</td><td><div id="PV_Voltage_display"></div></td></tr>
+    <tr><td>PV Current</td><td><div id="PV_Current_display"></div></td></tr>
+  </table>
 </nav>
 
 <div class="w3-overlay w3-hide-large" onclick="w3_close()" style="cursor: pointer; display: none;" title="close side menu" id="myOverlay"></div>
 
-  <div id="get_content" class="w3-main" style="margin-left:250px">
+  <div id="home_content" class="w3-main" style="margin-left:250px">
     <div class="w3-padding-64">
-       <table cellpadding="10px"><tr>
-          <td><button class="w3-button w3-black" onclick="op(display_time,'update_time');">Update Time</button></td><td id="time_display">Time not yet queried</td>
-       </tr></table>
+       <table cellpadding="10px">
+          <tr><td><button class="w3-button w3-black" onclick="op(display_ajax,'update_time');">Update Time</button></td><td id="update_time_display">Time not yet queried</td></tr>
+       </table>
     </div>
   </div>
 
-  <div id="post_content" class="w3-main" style="margin-left:250px;display:none;">
+  <div id="upgrade_content" class="w3-main" style="margin-left:250px;display:none;">
     <div id="image_list" class="w3-padding-64 w3-padding-large">
-      <form method="post" action="/upload_file" enctype="multipart/form-data"> 
+      <form method="post" action="/upgrade_file" enctype="multipart/form-data"> 
         <input type="file" id="upload_file" name="upload_file" accept="" />
         <br/>
-        <input type="submit" value="Upload" />
+        <input type="submit" value="Upgrade" />
       </form>
     </div>
   </div>
@@ -77,11 +86,17 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
 var mySidebar = document.getElementById("mySidebar");
 var overlayBg = document.getElementById("myOverlay");
 
-function display_time(result_text) {
-   document.getElementById("time_display").innerHTML = result_text;
+function updateSensors()
+{
+  op(display_ajax,'Load_Voltage');
+  op(display_ajax,'Load_Current');
+  op(display_ajax,'PV_Voltage');
+  op(display_ajax,'PV_Current');
 }
 
 $(document).ready(function() {
+  updateSensors()
+  setInterval(updateSensors, 2000);
 }); 
 
 </script>

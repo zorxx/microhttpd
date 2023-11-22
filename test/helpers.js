@@ -38,7 +38,7 @@ function op(complete_function) {
   {
     x.onreadystatechange = function() {
       if (x.readyState == 4) {
-        complete_function(x.responseText);
+        complete_function(x);
       }
     }
   }
@@ -52,6 +52,24 @@ function getValue(parameterName, valueDefault, callback) {
       valueResult = result; 
     }});
     return valueResult;
+}
+
+function display_ajax(result) {
+  var url = new URL(result.responseURL);
+  var e = "";
+  url.searchParams.forEach((value, key) => {
+    e += key + "_";
+  });
+  e += "display";
+
+  var el = document.getElementById(e);
+  if(el == null)
+     return;
+
+  if(result.status == 200)
+     el.innerHTML = result.responseText;
+  else
+     el.innerHTML = "Failed";
 }
 
 -->

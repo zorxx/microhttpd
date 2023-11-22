@@ -48,9 +48,36 @@ int main(int argc, char *argv[])
       return -1;
    }
 
+   DBG("Server started\n");
    while(microhttpd_process(ctx) == 0);
+   DBG("Server terminated\n");
    return 0;
 }
+
+static void ajax_UpdateTime(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+static void ajax_LoadVoltage(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+static void ajax_LoadCurrent(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+static void ajax_PVVoltage(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+static void ajax_PVCurrent(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+
+typedef struct sAjaxRegistry
+{
+   const char *name;
+   tMicroHttpdGetHandler handler;
+} tAjaxRegistry;
+static tAjaxRegistry ajaxRegistry[] =
+{
+  { "update_time", ajax_UpdateTime },
+  { "Load_Voltage", ajax_LoadVoltage },
+  { "Load_Current", ajax_LoadCurrent },
+  { "PV_Voltage", ajax_PVVoltage },
+  { "PV_Current", ajax_PVCurrent },
+};
 
 /* ---------------------------------------------------------------------------------------------
  *
@@ -83,6 +110,8 @@ static void handle_test(tMicroHttpdClient client, const char *uri,
 static void handle_ajax(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
+   bool found = false;
+
    if(param_count == 0 || param_list[0] == NULL || strlen(param_list[0]) == 0)
    {
       DBG("%s: No AJAX operation specified\n", __func__);
@@ -90,22 +119,25 @@ static void handle_ajax(tMicroHttpdClient client, const char *uri,
       return;
    }
 
-   if(param_count > 0 && strcmp(param_list[0], "update_time") == 0)
+   if(param_count > 0)
    {
-      char content[40];
-      struct timeval tv;
-      time_t curtime;
-
-      gettimeofday(&tv, NULL);
-      curtime = tv.tv_sec;
-      strftime(content, sizeof(content), "%m-%d-%Y %T", localtime(&curtime));
-      DBG("%s: Sending time update (%s)\n", __func__, content);
-      microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
-      return;
+      for(int i = 0; !found && i < ARRAY_SIZE(ajaxRegistry); ++i)
+      {
+         tAjaxRegistry *r = &ajaxRegistry[i];
+         if(strcmp(param_list[0], r->name) == 0)
+         {
+            DBG("%s: Handling AJAX parameter '%s'\n", __func__, r->name);
+            r->handler(client, uri, param_list, param_count, source_address, cookie);
+            found = true; 
+         }
+      }
    }
 
-   DBG("%s: AJAX operation '%s' not found\n", __func__, param_list[0]);
-   send_not_found(client, uri);
+   if(!found)
+   {
+      DBG("%s: AJAX operation '%s' not found\n", __func__, param_list[0]);
+      send_not_found(client, uri);
+   }
 }
 
 static void handle_file(tMicroHttpdClient client, const char *uri,
@@ -119,6 +151,7 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
    pFile = fopen(&uri[1], "rb");
    if(NULL == pFile)
    {
+      DBG("%s: File '%s' not found\n", __func__, &uri[1]);
       send_not_found(client, uri);
       return;
    }
@@ -153,4 +186,66 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
    if(NULL != content)
       free(content);
    fclose(pFile);
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * AJAX
+ */
+
+static void ajax_UpdateTime(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[40];
+   struct timeval tv;
+   time_t curtime;
+
+   gettimeofday(&tv, NULL);
+   curtime = tv.tv_sec;
+   strftime(content, sizeof(content), "%m-%d-%Y %T", localtime(&curtime));
+   DBG("%s: Sending time update (%s)\n", __func__, content);
+   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
+}
+
+static uint32_t loadVoltage = 0;
+static void ajax_LoadVoltage(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[40];
+   ++loadVoltage;
+   snprintf(content, sizeof(content), "%u", loadVoltage);
+   DBG("%s: Sending (%s)\n", __func__, content);
+   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
+}
+
+static uint32_t loadCurrent = 0;
+static void ajax_LoadCurrent(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[40];
+   ++loadCurrent;
+   snprintf(content, sizeof(content), "%u", loadCurrent);
+   DBG("%s: Sending (%s)\n", __func__, content);
+   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
+}
+
+static uint32_t pvVoltage = 0;
+static void ajax_PVVoltage(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[40];
+   ++pvVoltage;
+   snprintf(content, sizeof(content), "%u", pvVoltage);
+   DBG("%s: Sending (%s)\n", __func__, content);
+   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
+}
+
+static uint32_t pvCurrent = 0;
+static void ajax_PVCurrent(tMicroHttpdClient client, const char *uri,
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[40];
+   ++pvCurrent;
+   snprintf(content, sizeof(content), "%u", pvCurrent);
+   DBG("%s: Sending (%s)\n", __func__, content);
+   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
 }

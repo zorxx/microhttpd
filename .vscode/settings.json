@@ -2,5 +2,6 @@
     "cmake.configureArgs": [
         "-DBUILD_TESTS=ON"
         "-DDEBUG_PRINT=ON"
+        "-DCMAKE_BUILD_TYPE=Debug"
     ]
 }

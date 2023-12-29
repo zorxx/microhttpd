@@ -1,3 +1,13 @@
+# Copyright 2023 Zorxx Software. All rights reserved.
+
+# esp-idf component
+if(IDF_TARGET)
+   idf_component_register(SRCS "client.c" "helpers.c" "microhttpd.c" "post.c"
+                          PRIV_INCLUDE_DIRS "."
+                          INCLUDE_DIRS "./include")
+   return()
+endif()
+
 cmake_minimum_required(VERSION 3.0)
 set(project microhttpd)
 project(${project})

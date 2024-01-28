@@ -1,4 +1,4 @@
-/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2024 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file microhttpd.h
  *  \brief microhttpd External Interface
@@ -41,6 +41,8 @@ typedef void (*tMicroHttpdPostHandler)(tMicroHttpdClient client, const char *uri
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie,
    bool start, bool finish, const char *data, const uint32_t data_length, const uint32_t total_length);
 
+typedef void (*tMicroHttpdSsiHandler)(tMicroHttpdClient client, const char *var);
+
 typedef struct
 {
    uint16_t server_port;
@@ -57,6 +59,9 @@ typedef struct
    tMicroHttpdPostHandler post_handler;
    void *post_handler_cookie;
 
+   /* Server-side includes */
+   tMicroHttpdSsiHandler ssi_handler;
+
 } tMicroHttpdParams;
 
 tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params);
@@ -64,6 +69,8 @@ int microhttpd_process(tMicroHttpdContext context);
 
 int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char *content_type,
    uint32_t content_length, const char *extra_header_options, const char *content);
+
+/*! /param length Length (in bytes) of data to send. A value of zero indicates that a null-terminated string will be sent. */
 int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *content);
 
 #if defined(__cplusplus)

@@ -1,4 +1,4 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2024 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file main.c
  *  \brief microhttpd test application 
@@ -26,6 +26,7 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
 static void post_handler(tMicroHttpdClient client, const char *uri, const char *filename,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie,
    bool start, bool finish, const char *data, const uint32_t data_length, const uint32_t total_length);
+static void ssi_handler(tMicroHttpdClient client, const char *var);
 static tMicroHttpdGetHandlerEntry get_handler_list[] =
 {
    { "/ajax", handle_ajax, NULL },
@@ -44,6 +45,7 @@ int main(int argc, char *argv[])
    params.get_handler_list = get_handler_list;
    params.get_handler_count = ARRAY_SIZE(get_handler_list);
    params.default_get_handler = handle_file;
+   params.ssi_handler = ssi_handler;
 
    ctx = microhttpd_start(&params);
    if(NULL == ctx)
@@ -126,22 +128,23 @@ static void handle_ajax(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
    bool found = false;
+   int i;
 
    if(param_count == 0 || param_list[0] == NULL || strlen(param_list[0]) == 0)
    {
-      DBG("%s: No AJAX operation specified\n", __func__);
+      DBG("[%s] No AJAX operation specified\n", __func__);
       send_not_found(client, uri);
       return;
    }
 
    if(param_count > 0)
    {
-      for(int i = 0; !found && i < ARRAY_SIZE(ajaxRegistry); ++i)
+      for(i = 0; !found && i < ARRAY_SIZE(ajaxRegistry); ++i)
       {
          tAjaxRegistry *r = &ajaxRegistry[i];
          if(strcmp(param_list[0], r->name) == 0)
          {
-            DBG("%s: Handling AJAX parameter '%s'\n", __func__, r->name);
+            DBG("[%s] Handling AJAX parameter '%s'\n", __func__, r->name);
             r->handler(client, uri, param_list, param_count, source_address, cookie);
             found = true; 
          }
@@ -150,7 +153,7 @@ static void handle_ajax(tMicroHttpdClient client, const char *uri,
 
    if(!found)
    {
-      DBG("%s: AJAX operation '%s' not found\n", __func__, param_list[0]);
+      DBG("[%s] AJAX operation '%s' not found\n", __func__, param_list[0]);
       send_not_found(client, uri);
    }
 }
@@ -160,13 +163,14 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
 {
    FILE *pFile;
    int32_t total_length, sent_length;
+   int i;
    char *content;
    bool failed = false;
    const char *filename = NULL; 
    const char *extension = NULL;
    const char *content_type = "text/html";
 
-   for(int i = 0; NULL == filename && i < ARRAY_SIZE(uriRename); ++i)
+   for(i = 0; NULL == filename && i < ARRAY_SIZE(uriRename); ++i)
    {
       if(strcmp(uriRename[i].requested, uri) == 0)
          filename = uriRename[i].rename;
@@ -177,7 +181,7 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
    pFile = fopen(&filename[1], "rb");
    if(NULL == pFile)
    {
-      DBG("%s: File '%s' not found\n", __func__, &filename[1]);
+      DBG("[%s] File '%s' not found\n", __func__, &filename[1]);
       send_not_found(client, uri);
       return;
    }
@@ -192,7 +196,7 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
 
    fseek(pFile, 0, SEEK_END);
    total_length = ftell(pFile);
-   DBG("%s: sending file, length %u\n", __func__, total_length);
+   DBG("[%s] sending file, length %u\n", __func__, total_length);
    rewind(pFile);
    microhttpd_send_response(client, HTTP_OK, content_type, total_length, NULL, NULL);
 
@@ -206,12 +210,12 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
       int32_t read_length = fread(content, 1, FILE_BUFFER_SIZE, pFile);
       if(read_length <= 0)
       {
-         DBG("%s: failed to read from file\n", __func__);
+         DBG("[%s] failed to read from file\n", __func__);
          failed = true;
       }
       else
       {
-         DBG("%s: sending %u bytes\n", __func__, total_length);
+         DBG("[%s] sending %u bytes\n", __func__, total_length);
          microhttpd_send_data(client, read_length, content);
          sent_length += read_length;
       }
@@ -236,7 +240,7 @@ static void ajax_UpdateTime(tMicroHttpdClient client, const char *uri,
    gettimeofday(&tv, NULL);
    curtime = tv.tv_sec;
    strftime(content, sizeof(content), "%m-%d-%Y %T", localtime(&curtime));
-   DBG("%s: Sending time update (%s)\n", __func__, content);
+   DBG("[%s] Sending time update (%s)\n", __func__, content);
    microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content);
 }
 
@@ -247,7 +251,7 @@ static void ajax_LoadVoltage(tMicroHttpdClient client, const char *uri,
    char content[40];
    ++loadVoltage;
    snprintf(content, sizeof(content), "%u", loadVoltage);
-   DBG("%s: Sending (%s)\n", __func__, content);
+   DBG("[%s] Sending (%s)\n", __func__, content);
    microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content);
 }
 
@@ -258,7 +262,7 @@ static void ajax_LoadCurrent(tMicroHttpdClient client, const char *uri,
    char content[40];
    ++loadCurrent;
    snprintf(content, sizeof(content), "%u", loadCurrent);
-   DBG("%s: Sending (%s)\n", __func__, content);
+   DBG("[%s] Sending (%s)\n", __func__, content);
    microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content);
 }
 
@@ -269,7 +273,7 @@ static void ajax_PVVoltage(tMicroHttpdClient client, const char *uri,
    char content[40];
    ++pvVoltage;
    snprintf(content, sizeof(content), "%u", pvVoltage);
-   DBG("%s: Sending (%s)\n", __func__, content);
+   DBG("[%s] Sending (%s)\n", __func__, content);
    microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content);
 }
 
@@ -280,7 +284,7 @@ static void ajax_PVCurrent(tMicroHttpdClient client, const char *uri,
    char content[40];
    ++pvCurrent;
    snprintf(content, sizeof(content), "%u", pvCurrent);
-   DBG("%s: Sending (%s)\n", __func__, content);
+   DBG("[%s] Sending (%s)\n", __func__, content);
    microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content);
 }
 
@@ -295,6 +299,8 @@ static void post_handler(tMicroHttpdClient client, const char *uri, const char *
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie,
    bool start, bool finish, const char *data, const uint32_t data_length, const uint32_t total_length)
 {
+   int i;
+
    if(start)
    {
       DBG("Starting upload of %s, length %u (current %u)\n", filename, total_length, data_length);
@@ -302,7 +308,7 @@ static void post_handler(tMicroHttpdClient client, const char *uri, const char *
       fileInProgress = true;
    }
 
-   for(int i = 0; i < param_count; ++i)
+   for(i = 0; i < param_count; ++i)
    {
       DBG("Parameter %u: %s\n", i, param_list[i]);
    }
@@ -315,4 +321,14 @@ static void post_handler(tMicroHttpdClient client, const char *uri, const char *
       DBG("Finished upload of %s, length %u bytes\n", filename, total_length);
       microhttpd_send_response(client, HTTP_URI_FOUND, "text/html", 0, "Location: /upgrade_done\r\n", NULL);
    }
+}
+
+/* -----------------------------------------------------------------------------------------------------
+ * POST
+ */
+
+static void ssi_handler(tMicroHttpdClient client, const char *var)
+{
+   if(strcmp(var, "ssi_test") == 0)
+      microhttpd_send_data(client, 0, "SSI DATA");
 }

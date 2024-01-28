@@ -115,7 +115,7 @@ void string_list_clear(char ***string_list, uint32_t *list_size)
    if(*string_list == NULL)
       return;
 
-   MH_DBG("%s: Clearing %"PRIu32" strings\n", __func__, *list_size);
+   MH_DBG("[%s] Clearing %"PRIu32" strings\n", __func__, *list_size);
 
    for(idx = 0; idx < *list_size; ++idx)
       free((*string_list)[idx]);

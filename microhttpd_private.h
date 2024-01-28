@@ -1,4 +1,4 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2024 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file microhttpd_private.h
  *  \brief Private (non-exported) definitions for microhttpd
@@ -23,6 +23,8 @@
 #define MICROHTTPD_MAX_QUEUED_CONNECTIONS    10
 #define MICROHTTPD_MAX_HTTP_HEADER_OPTIONS   20
 #define MICROHTTPD_MAX_HTTP_URI_PARAMS       20
+#define MICROHTTPD_MAX_SEND_LENGTH           (1024*1024)
+#define MICROHTTPD_SSI_TAG_MAX_LENGTH        128
 
 struct md_client;
 struct md_context;

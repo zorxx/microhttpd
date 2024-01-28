@@ -1,4 +1,4 @@
-/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
+/*! \copyright 2018 - 2024 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
  *  \file client.c
  *  \brief microhttpd client implementation
@@ -23,7 +23,7 @@ int microhttpd_NewClient(struct md_context *ctx, int nSocket, struct sockaddr_in
    memset(client, 0, sizeof(*client));
    snprintf(client->source_address, sizeof(client->source_address) - 1, 
       "%u.%u.%u.%u:%u", addr[0], addr[1], addr[2], addr[3], port);
-   MH_DBG("%s: New client connected from %s\n", __func__, client->source_address);
+   MH_DBG("[%s] New client connected from %s\n", __func__, client->source_address);
 
    client->socket = nSocket;
    memcpy(&client->socket_info, socket_info, sizeof(client->socket_info));
@@ -31,7 +31,7 @@ int microhttpd_NewClient(struct md_context *ctx, int nSocket, struct sockaddr_in
    client->rx_buffer = malloc(client->rx_buffer_size);
    if(client->rx_buffer == NULL)
    {
-      MH_DBG("%s: Failed to allocate receive buffer\n", __func__);
+      MH_DBG("[%s] Failed to allocate receive buffer\n", __func__);
       free(client);
       return -1;
    }
@@ -66,10 +66,10 @@ int microhttpd_RemoveClient(struct md_context *ctx, struct md_client *client)
 
    if(!found)
    {
-      MH_DBG("%s: Client not found in list\n", __func__);
+      MH_DBG("[%s] Client not found in list\n", __func__);
       return -1;
    }
-   MH_DBG("%s: Client removed\n", __func__);
+   MH_DBG("[%s] Client removed\n", __func__);
 
    microhttpd_ResetState(client);
    free(client->rx_buffer);
@@ -86,19 +86,19 @@ int microhttpd_HandleClientReceive(struct md_context *ctx, struct md_client *cli
 
    if(space_left <= 0)
    {
-      MH_DBG("%s: Invalid space remaining (%"PRIi32")\n", __func__, space_left);
+      MH_DBG("[%s] Invalid space remaining (%"PRIi32")\n", __func__, space_left);
       return microhttpd_RemoveClient(ctx, client);
    }
-   MH_DBG("%s: Receive at offset %"PRIu32", %"PRIu32" bytes remaining\n",
+   MH_DBG("[%s] Receive at offset %"PRIu32", %"PRIu32" bytes remaining\n",
       __func__, client->rx_size, space_left);
    length = read(client->socket, &client->rx_buffer[client->rx_size], space_left); 
    if(length <= 0)
    {
-      MH_DBG("%s: Read failed (%"PRIi32")\n", __func__, length);
+      MH_DBG("[%s] Read failed (%"PRIi32")\n", __func__, length);
       return microhttpd_RemoveClient(ctx, client);
    }
    client->rx_size += length;
-   MH_DBG("%s: Received %"PRIu32" bytes (total now %"PRIu32")\n", __func__, length, client->rx_size);
+   MH_DBG("[%s] Received %"PRIu32" bytes (total now %"PRIu32")\n", __func__, length, client->rx_size);
 
    cont = true;
    do
@@ -109,7 +109,7 @@ int microhttpd_HandleClientReceive(struct md_context *ctx, struct md_client *cli
 
       if(error)
       {
-         MH_DBG("%s: State machine error\n", __func__);
+         MH_DBG("[%s] State machine error\n", __func__);
          return microhttpd_RemoveClient(ctx, client);
       }
 
@@ -117,7 +117,7 @@ int microhttpd_HandleClientReceive(struct md_context *ctx, struct md_client *cli
       {
          if(client->rx_size < consumed)
          {
-            MH_DBG("%s: Rx buffer underrun (consumed %"PRIu32" of %"PRIu32" bytes)\n",
+            MH_DBG("[%s] Rx buffer underrun (consumed %"PRIu32" of %"PRIu32" bytes)\n",
                __func__, consumed, client->rx_size);
             return microhttpd_RemoveClient(ctx, client);
          }
@@ -132,6 +132,7 @@ int microhttpd_HandleClientReceive(struct md_context *ctx, struct md_client *cli
 
 int microhttpd_HandleClientError(struct md_context *ctx, struct md_client *client)
 {
-   MH_DBG("%s: Socket error\n", __func__);
+   MH_DBG("[%s]\n", __func__);
+   close(client->socket);
    return microhttpd_RemoveClient(ctx, client);
 }

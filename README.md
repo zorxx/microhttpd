@@ -1,7 +1,7 @@
 # microhttpd
 micro-sized HTTP server
 
-[![Build Status](https://travis-ci.org/zorxx/microhttpd.svg?branch=master)](https://travis-ci.org/zorxx/microhttpd)
+![Build Status](https://github.com/zorxx/microhttpd/actions/workflows/cmake.yml/badge.svg)
 
 ## Overview
 There are lots of small web server implementations. microhttpd is designed to have a small code footprint, minimal dependencies, and sufficient configuration to support a wide-variety of applications.
@@ -22,16 +22,27 @@ Most HTTP servers are designed to serve files from a filesystem; but this isn't 
 The following example is a minimal application
 
 ```c
+#include "microhttpd/microhttpd.h"
 #include <stdio.h>
 #include <string.h>
-#include "microhttpd.h"
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
 static void handle_root(tMicroHttpdClient client, const char *uri,
-   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[] = "<html>Hello there!</html>";
+   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
+}
+
 static void handle_not_found(tMicroHttpdClient client, const char *uri,
-   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie);
+   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
+{
+   char content[200];
+   snprintf(content, sizeof(content), "<html><title>Not Found</title>Not found: %s</html>", uri);
+   microhttpd_send_response(client, 404, "text/html", strlen(content), NULL, content);
+}
+
 static tMicroHttpdGetHandlerEntry get_handler_list[] =
 {
    { "/", handle_root, NULL }
@@ -59,20 +70,4 @@ int main(int argc, char *argv[])
    while(microhttpd_process(ctx) == 0);
    return 0;
 }
-
-static void handle_root(tMicroHttpdClient client, const char *uri,
-   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
-{
-   char content[] = "<html>Hello there!</html>";
-   microhttpd_send_response(client, 200, "text/html", strlen(content), NULL, content);
-}
-
-static void handle_not_found(tMicroHttpdClient client, const char *uri,
-   const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
-{
-   char content[200];
-   snprintf(content, sizeof(content), "<html><title>Not Found</title>Not found: %s</html>", uri);
-   microhttpd_send_response(client, 404, "text/html", strlen(content), NULL, content);
-}
-
 ```

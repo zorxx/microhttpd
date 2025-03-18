@@ -1,6 +1,5 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018-2025 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
- *  \file helpers.h
  *  \brief microhttpd helper interface
  */
 #ifndef MICROHTTPD_HELPERS_H
@@ -11,6 +10,7 @@
 
 #define MAX(x, y) (x) > (y) ? (x) : (y)
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof((a)[0]))
+#define UNUSED_PARAMETER(x) (void)x;
 
 char *lower(char* s);
 char *string_find(char *string, uint32_t string_length, char *delimiter,

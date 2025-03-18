@@ -1,17 +1,17 @@
-/*! \copyright 2018 Zorxx Software. All rights reserved.
+/*! \copyright 2018-2025 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
- *  \file main.c
- *  \brief microhttpd test application 
+ *  \brief microhttpd test application
  */
+#include "microhttpd/microhttpd.h"
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
 #include <malloc.h>
 #include <sys/time.h>
-#include "microhttpd/microhttpd.h"
 
 #define SERVER_PORT 8090
 
+#define UNUSED_PARAMETER(x) (void)x;
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 #define FILE_BUFFER_SIZE 2048
 #define DBG printf
@@ -36,6 +36,9 @@ int main(int argc, char *argv[])
 {
    tMicroHttpdParams params = {0};
    tMicroHttpdContext ctx;
+
+   UNUSED_PARAMETER(argc);
+   UNUSED_PARAMETER(argv);
 
    params.server_port = SERVER_PORT;
    params.process_timeout = 0;
@@ -119,7 +122,12 @@ static void handle_test(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
    char content[] = "<html>Hello there!</html>";
-   microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content); 
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
+   microhttpd_send_response(client, HTTP_OK, "text/html", strlen(content), NULL, content);
 }
 
 static void handle_ajax(tMicroHttpdClient client, const char *uri,
@@ -136,14 +144,14 @@ static void handle_ajax(tMicroHttpdClient client, const char *uri,
 
    if(param_count > 0)
    {
-      for(int i = 0; !found && i < ARRAY_SIZE(ajaxRegistry); ++i)
+      for(uint32_t i = 0; !found && i < ARRAY_SIZE(ajaxRegistry); ++i)
       {
          tAjaxRegistry *r = &ajaxRegistry[i];
          if(strcmp(param_list[0], r->name) == 0)
          {
             DBG("%s: Handling AJAX parameter '%s'\n", __func__, r->name);
             r->handler(client, uri, param_list, param_count, source_address, cookie);
-            found = true; 
+            found = true;
          }
       }
    }
@@ -162,11 +170,16 @@ static void handle_file(tMicroHttpdClient client, const char *uri,
    int32_t total_length, sent_length;
    char *content;
    bool failed = false;
-   const char *filename = NULL; 
+   const char *filename = NULL;
    const char *extension = NULL;
    const char *content_type = "text/html";
 
-   for(int i = 0; NULL == filename && i < ARRAY_SIZE(uriRename); ++i)
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
+
+   for(uint32_t i = 0; NULL == filename && i < ARRAY_SIZE(uriRename); ++i)
    {
       if(strcmp(uriRename[i].requested, uri) == 0)
          filename = uriRename[i].rename;
@@ -233,6 +246,12 @@ static void ajax_UpdateTime(tMicroHttpdClient client, const char *uri,
    struct timeval tv;
    time_t curtime;
 
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
+
    gettimeofday(&tv, NULL);
    curtime = tv.tv_sec;
    strftime(content, sizeof(content), "%m-%d-%Y %T", localtime(&curtime));
@@ -245,6 +264,11 @@ static void ajax_LoadVoltage(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
    char content[40];
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
    ++loadVoltage;
    snprintf(content, sizeof(content), "%u", loadVoltage);
    DBG("%s: Sending (%s)\n", __func__, content);
@@ -256,6 +280,11 @@ static void ajax_LoadCurrent(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
    char content[40];
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
    ++loadCurrent;
    snprintf(content, sizeof(content), "%u", loadCurrent);
    DBG("%s: Sending (%s)\n", __func__, content);
@@ -267,6 +296,11 @@ static void ajax_PVVoltage(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
    char content[40];
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
    ++pvVoltage;
    snprintf(content, sizeof(content), "%u", pvVoltage);
    DBG("%s: Sending (%s)\n", __func__, content);
@@ -278,6 +312,11 @@ static void ajax_PVCurrent(tMicroHttpdClient client, const char *uri,
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie)
 {
    char content[40];
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(param_list);
+   UNUSED_PARAMETER(param_count);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
    ++pvCurrent;
    snprintf(content, sizeof(content), "%u", pvCurrent);
    DBG("%s: Sending (%s)\n", __func__, content);
@@ -295,6 +334,11 @@ static void post_handler(tMicroHttpdClient client, const char *uri, const char *
    const char *param_list[], const uint32_t param_count, const char *source_address, void *cookie,
    bool start, bool finish, const char *data, const uint32_t data_length, const uint32_t total_length)
 {
+   UNUSED_PARAMETER(uri);
+   UNUSED_PARAMETER(source_address);
+   UNUSED_PARAMETER(cookie);
+   UNUSED_PARAMETER(data);
+
    if(start)
    {
       DBG("Starting upload of %s, length %u (current %u)\n", filename, total_length, data_length);
@@ -302,7 +346,7 @@ static void post_handler(tMicroHttpdClient client, const char *uri, const char *
       fileInProgress = true;
    }
 
-   for(int i = 0; i < param_count; ++i)
+   for(uint32_t i = 0; i < param_count; ++i)
    {
       DBG("Parameter %u: %s\n", i, param_list[i]);
    }
@@ -311,7 +355,6 @@ static void post_handler(tMicroHttpdClient client, const char *uri, const char *
 
    if(finish)
    {
-      char *content = "/index.html";
       DBG("Finished upload of %s, length %u bytes\n", filename, total_length);
       microhttpd_send_response(client, HTTP_URI_FOUND, "text/html", 0, "Location: /upgrade_done\r\n", NULL);
    }

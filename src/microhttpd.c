@@ -1,8 +1,13 @@
-/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
+/*! \copyright 2018-2025 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
- *  \file microhttpd.c
- *  \brief microhttpd Implementation 
+ *  \brief microhttpd Implementation
  */
+#include "microhttpd/microhttpd.h"
+#include "microhttpd_private.h"
+#include "post.h"
+#include "client.h"
+#include "helpers.h"
+#include "debug.h"
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -10,12 +15,6 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include "debug.h"
-#include "helpers.h"
-#include "client.h"
-#include "post.h"
-#include "microhttpd_private.h"
-#include "microhttpd/microhttpd.h"
 
 // Forward function declarations
 static int microhttpd_CreateListeningSocket(struct md_context *ctx);
@@ -47,7 +46,7 @@ tMicroHttpdContext microhttpd_start(tMicroHttpdParams *params)
    if(NULL == ctx)
    {
       MH_DBG("%s: Failed to allocate context structure\n", __func__);
-      return NULL; 
+      return NULL;
    }
    memset(ctx, 0, sizeof(*ctx));
    memcpy(&ctx->params, params, sizeof(ctx->params));
@@ -84,7 +83,7 @@ int microhttpd_process(tMicroHttpdContext context)
       timeout.tv_usec = (ctx->params.process_timeout % 1000) * 1000;
       pTimeout = &timeout;
    }
-   
+
    FD_ZERO(&fdRead);
    FD_SET(ctx->listen_socket, &fdRead);
    FD_SET(ctx->listen_socket, &fdError);
@@ -101,7 +100,7 @@ int microhttpd_process(tMicroHttpdContext context)
    //  is necessary since the client list can change (shrink) as select events are processed.
    client_list = (struct md_client **) malloc(sizeof(struct md_client *) * client_count);
    client = ctx->client_list;
-   for(int i = 0; i < client_count; ++i)
+   for(uint32_t i = 0; i < client_count; ++i)
    {
       client_list[i] = client;
       client = client->next;
@@ -119,7 +118,7 @@ int microhttpd_process(tMicroHttpdContext context)
    {
       MH_DBG("%s: select failed (errno %d)\n", __func__, errno);
       // Go through the list of clients and prune any closed sockets
-      for(int i = 0; i < client_count; ++i)
+      for(uint32_t i = 0; i < client_count; ++i)
       {
          if(fcntl(client_list[i]->socket, F_GETFD) != 0)
             microhttpd_RemoveClient(ctx, client_list[i]);
@@ -129,7 +128,7 @@ int microhttpd_process(tMicroHttpdContext context)
    }
 
    /* First, process any data received from clients */
-   for(int i = 0; i < client_count; ++i)
+   for(uint32_t i = 0; i < client_count; ++i)
    {
       client = client_list[i];
       if(FD_ISSET(client->socket, &fdError))
@@ -155,7 +154,7 @@ int microhttpd_process(tMicroHttpdContext context)
          microhttpd_NewClient(ctx, nSocket, &info);
    }
 
-   return 0; 
+   return 0;
 }
 
 int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *content)
@@ -167,7 +166,7 @@ int microhttpd_send_data(tMicroHttpdClient client, uint32_t length, const char *
       return -1;
 
    result = send(c->socket, content, length, 0);
-   if(result != length)
+   if(result != (int32_t)length)
    {
       MH_DBG("%s: Failed to send %"PRIu32" byte content (%"PRIi32")\n", __func__, length, result);
       /* TODO: close connection? */
@@ -195,12 +194,12 @@ int microhttpd_send_response(tMicroHttpdClient client, uint16_t code, const char
       MH_DBG("%s: Failed to allocate response buffer (%"PRIi32" bytes)\n", __func__, length);
       return -1;
    }
-   
+
    /* Build and send header */
    length = sprintf(tx, RESPONSE_HEADER, code, content_length);
    if(NULL != extra_header_options)
    {
-      strcpy(&tx[length], extra_header_options); 
+      strcpy(&tx[length], extra_header_options);
       length += strlen(extra_header_options);
    }
    if(content_type != NULL)
@@ -258,9 +257,9 @@ static int microhttpd_CreateListeningSocket(struct md_context *ctx)
       sinAddress.sin_port = htons(ctx->params.server_port);
       if(bind(ctx->listen_socket, (struct sockaddr*) &sinAddress, sizeof(sinAddress)) < 0)
       {
-         MH_DBG("%s: Error binding on port %u\n", __func__, ctx->params.server_port); 
+         MH_DBG("%s: Error binding on port %u\n", __func__, ctx->params.server_port);
       }
-      else if(fcntl(ctx->listen_socket, F_SETFL, 
+      else if(fcntl(ctx->listen_socket, F_SETFL,
          fcntl(ctx->listen_socket, F_GETFL, 0) | O_NONBLOCK) != 0)
       {
          MH_DBG("%s: Failed to set non-blocking mode on listening socket\n", __func__);
@@ -286,7 +285,7 @@ static int microhttpd_CreateListeningSocket(struct md_context *ctx)
 }
 
 /* -------------------------------------------------------------------------------------------------
- * States 
+ * States
  */
 
 static bool state_ParseHeader(struct md_client *client, uint32_t *consumed, bool *error)
@@ -330,6 +329,8 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
 {
    char *offset;
    uint32_t remaining;
+
+   UNUSED_PARAMETER(consumed);
 
    if(client->header_entry_count == 0)
    {
@@ -376,7 +377,7 @@ static bool state_HeaderComplete(struct md_client *client, uint32_t *consumed, b
                client->uri_params[client->uri_param_count]);
             ++(client->uri_param_count);
          }
-   
+
          if(client->uri_param_count >= ARRAY_SIZE(client->uri_params))
             done = true;
       }
@@ -397,6 +398,9 @@ static bool state_HandleOperationGet(struct md_client *client, uint32_t *consume
 {
    struct md_context *ctx = client->ctx;
    uint32_t idx, match_count = 0;
+
+   UNUSED_PARAMETER(consumed);
+   UNUSED_PARAMETER(error);
 
    MH_DBG("%s: Searching %"PRIu32" GET operations\n", __func__, ctx->params.get_handler_count);
    for(idx = 0; idx < ctx->params.get_handler_count; ++idx)
@@ -432,6 +436,8 @@ static bool state_HandleOperationGet(struct md_client *client, uint32_t *consume
 static bool state_HandleOperationUnsupported(struct md_client *client, uint32_t *consumed, bool *error)
 {
    MH_DBG("%s: Unsupported HTTP operation '%s'\n", __func__, client->operation);
+   UNUSED_PARAMETER(consumed);
+   UNUSED_PARAMETER(error);
    microhttpd_ResetState(client);
    return true;
 }

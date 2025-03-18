@@ -1,14 +1,13 @@
-/*! \copyright 2018 - 2023 Zorxx Software. All rights reserved.
+/*! \copyright 2018-2025 Zorxx Software. All rights reserved.
  *  \license This file is released under the MIT License. See the LICENSE file for details.
- *  \file post.c
- *  \brief microhttpd POST Implementation 
+ *  \brief microhttpd POST Implementation
  */
+#include "post.h"
+#include "helpers.h"
+#include "debug.h"
 #include <stdlib.h>
 #include <string.h>
 #include <inttypes.h>
-#include "debug.h"
-#include "helpers.h"
-#include "post.h"
 
 static bool state_HandlePostHeader(struct md_client *client, uint32_t *consumed, bool *error);
 static bool state_HandlePostHeaderComplete(struct md_client *client, uint32_t *consumed, bool *error);
@@ -22,6 +21,9 @@ bool state_HandleOperationPost(struct md_client *client, uint32_t *consumed, boo
 {
    uint32_t idx, content_length = 0;
    bool found;
+
+   UNUSED_PARAMETER(consumed);
+   UNUSED_PARAMETER(error);
 
    for(idx = 0, found = false; idx < client->header_entry_count && !found; ++idx)
    {
@@ -40,7 +42,7 @@ bool state_HandleOperationPost(struct md_client *client, uint32_t *consumed, boo
 }
 
 /* ------------------------------------------------------------------------------------------
- * Private Functions 
+ * Private Functions
  */
 
 static bool state_HandlePostHeader(struct md_client *client, uint32_t *consumed, bool *error)
@@ -85,6 +87,9 @@ static bool state_HandlePostHeaderComplete(struct md_client *client, uint32_t *c
    struct md_context *ctx = client->ctx;
    uint32_t idx;
    bool found;
+
+   UNUSED_PARAMETER(consumed);
+   UNUSED_PARAMETER(error);
 
    client->post_boundary = NULL;
    for(idx = 0, found = false; idx < client->header_entry_count && !found; ++idx)
@@ -144,11 +149,14 @@ static bool state_HandlePostData(struct md_client *client, uint32_t *consumed, b
    struct md_context *ctx = client->ctx;
    uint32_t handled_length, data_length;
 
+   UNUSED_PARAMETER(consumed);
+   UNUSED_PARAMETER(error);
+
    handled_length = client->content_remaining;
    if(handled_length > client->rx_size)
       handled_length = client->rx_size;
-      
-   client->content_remaining -= handled_length; 
+
+   client->content_remaining -= handled_length;
    MH_DBG("%s: POST total length %"PRIu32", current length %"PRIu32", remaining length %"PRIu32"\n",
       __func__, client->content_length, handled_length, client->content_remaining);
 
@@ -164,7 +172,7 @@ static bool state_HandlePostData(struct md_client *client, uint32_t *consumed, b
          false, false, client->rx_buffer, data_length, client->content_length);
    }
 
-   *consumed = handled_length; 
+   *consumed = handled_length;
    if(0 == client->content_remaining)
    {
       MH_DBG("%s: POST finished\n", __func__);
